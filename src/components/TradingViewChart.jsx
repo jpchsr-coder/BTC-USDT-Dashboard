@@ -1,10 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 
 const TradingViewChart = ({ theme }) => {
   const containerRef = useRef(null);
   const scriptRef = useRef(null);
+  const currentThemeRef = useRef(theme);
 
-  useEffect(() => {
+  const createWidget = useCallback(() => {
     if (!containerRef.current) return;
 
     // Clean up any existing content
@@ -39,6 +40,18 @@ const TradingViewChart = ({ theme }) => {
 
     scriptRef.current = script;
     widgetContainer.appendChild(script);
+  }, [theme]);
+
+  useEffect(() => {
+    // Only recreate widget if theme actually changed
+    if (currentThemeRef.current !== theme) {
+      currentThemeRef.current = theme;
+      createWidget();
+    }
+  }, [theme, createWidget]);
+
+  useEffect(() => {
+    createWidget();
 
     return () => {
       if (scriptRef.current && scriptRef.current.parentNode) {
@@ -48,7 +61,7 @@ const TradingViewChart = ({ theme }) => {
         containerRef.current.innerHTML = '';
       }
     };
-  }, [theme]);
+  }, []); // Empty dependency array - only run once on mount
 
   return (
     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm overflow-hidden">

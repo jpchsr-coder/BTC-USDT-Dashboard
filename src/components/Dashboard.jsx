@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useTheme } from '../hooks/useTheme';
 import StatsCard from './StatsCard';
@@ -14,6 +14,18 @@ const Dashboard = () => {
   const [priceHistory, setPriceHistory] = useState([]);
   const [priceChangeClass, setPriceChangeClass] = useState('');
   const priceHistoryRef = useRef([]);
+  const animationTimeoutRef = useRef(null);
+
+  const formatLargeNumber = useCallback((num) => {
+    if (num >= 1000000000) {
+      return `${(num / 1000000000).toFixed(2)}B`;
+    } else if (num >= 1000000) {
+      return `${(num / 1000000).toFixed(2)}M`;
+    } else if (num >= 1000) {
+      return `${(num / 1000).toFixed(2)}K`;
+    }
+    return num.toFixed(2);
+  }, []);
 
   useEffect(() => {
     if (data) {
@@ -24,7 +36,12 @@ const Dashboard = () => {
           if (prev && prev.lastPrice !== data.lastPrice) {
             const changeClass = data.lastPrice > prev.lastPrice ? 'price-up' : 'price-down';
             setPriceChangeClass(changeClass);
-            setTimeout(() => setPriceChangeClass(''), 500);
+            
+            // Clear previous timeout and set new one
+            if (animationTimeoutRef.current) {
+              clearTimeout(animationTimeoutRef.current);
+            }
+            animationTimeoutRef.current = setTimeout(() => setPriceChangeClass(''), 500);
           }
           return data;
         }
@@ -32,21 +49,24 @@ const Dashboard = () => {
       });
 
       // Update price history for sparkline (keep last 60 data points)
-      priceHistoryRef.current = [...priceHistoryRef.current.slice(-59), data.lastPrice];
-      setPriceHistory([...priceHistoryRef.current]);
+      // Use more efficient array operations
+      const newHistory = priceHistoryRef.current.length >= 59 
+        ? [...priceHistoryRef.current.slice(-59), data.lastPrice]
+        : [...priceHistoryRef.current, data.lastPrice];
+      
+      priceHistoryRef.current = newHistory;
+      setPriceHistory(newHistory);
     }
   }, [data]);
 
-  const formatLargeNumber = (num) => {
-    if (num >= 1000000000) {
-      return `${(num / 1000000000).toFixed(2)}B`;
-    } else if (num >= 1000000) {
-      return `${(num / 1000000).toFixed(2)}M`;
-    } else if (num >= 1000) {
-      return `${(num / 1000).toFixed(2)}K`;
-    }
-    return num.toFixed(2);
-  };
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (animationTimeoutRef.current) {
+        clearTimeout(animationTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const isLoading = !data && connectionStatus === 'Connecting';
 
